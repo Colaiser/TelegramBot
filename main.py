@@ -1,24 +1,27 @@
-from email.headerregistry import BaseHeader
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher.storage import FSMContext
+import asyncio
 
 from bs4 import BeautifulSoup
 import requests
 
 from config import TOKEN
+from utils import parse_cities
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 class WeatherForm(StatesGroup):
     city = State()
+class CityForm(StatesGroup):
+    city = State()
 
 @dp.message_handler(commands=['weather'])
 async def ask_city(message : types.Message):
     await WeatherForm.city.set()
-    answer = await message.answer("В какой области вы находитесь?")
+    answer = await message.answer("В каком городе вы находитесь?")
 
 @dp.message_handler(state=WeatherForm.city)
 async def get_cities(message : types.Message, state : FSMContext):
@@ -37,23 +40,13 @@ async def get_cities(message : types.Message, state : FSMContext):
         city = item.find('a')
 
         if city is not None and city.text not in ignore:
-            cities[city.text] = city.get('href')
+            link = city.get('href')
 
-    result = 'Не найдено'
-    found = False
+            loop = asyncio.new_event_loop() 
+            asyncio.run_coroutine_threadsafe(parse_cities(link), loop)
 
-    for city in cities.keys():
-        if selected in city:
-            result = city
-            found = True
-            break
 
-    if found:
-        print(cities[result])
-        
-    
-
-    await message.reply(f"Выбрана область : {result}")
+    await message.reply(f"Выбрана область")
     await state.finish()
 
 @dp.message_handler()
